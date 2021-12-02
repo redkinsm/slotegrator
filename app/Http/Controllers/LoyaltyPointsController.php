@@ -18,18 +18,12 @@ class LoyaltyPointsController extends Controller
 
         $type = $data['account_type'];
         $id = $data['account_id'];
-        if (($type == 'phone' || $type == 'card' || $type == 'email') && $id != '') {
-            if ($account = LoyaltyAccount::where($type, '=', $id)->first()) {
-                if ($account->active) {
+        if (LoyaltyAccount::isValid($type, $id)) {
+            if ($account = LoyaltyAccount::getLoyaltyAccountByTypeAndId($type, $id)) {
+                if ($account->isActive()) {
                     $transaction =  LoyaltyPointsTransaction::performPaymentLoyaltyPoints($account->id, $data['loyalty_points_rule'], $data['description'], $data['payment_id'], $data['payment_amount'], $data['payment_time']);
                     Log::info($transaction);
-                    if ($account->email != '' && $account->email_notification) {
-                        Mail::to($account)->send(new LoyaltyPointsReceived($transaction->points_amount, $account->getBalance()));
-                    }
-                    if ($account->phone != '' && $account->phone_notification) {
-                        // instead SMS component
-                        Log::info('You received' . $transaction->points_amount . 'Your balance' . $account->getBalance());
-                    }
+                    $account->sendNotif($transaction);
                     return $transaction;
                 } else {
                     Log::info('Account is not active');
@@ -56,9 +50,7 @@ class LoyaltyPointsController extends Controller
         }
 
         if ($transaction = LoyaltyPointsTransaction::where('id', '=', $data['transaction_id'])->where('canceled', '=', 0)->first()) {
-            $transaction->canceled = time();
-            $transaction->cancellation_reason = $reason;
-            $transaction->save();
+            $transaction->cancel($reason);
         } else {
             return response()->json(['message' => 'Transaction is not found'], 400);
         }
@@ -72,8 +64,8 @@ class LoyaltyPointsController extends Controller
 
         $type = $data['account_type'];
         $id = $data['account_id'];
-        if (($type == 'phone' || $type == 'card' || $type == 'email') && $id != '') {
-            if ($account = LoyaltyAccount::where($type, '=', $id)->first()) {
+        if (LoyaltyAccount::isValid($type, $id)) {
+            if ($account = LoyaltyAccount::getLoyaltyAccountByTypeAndId($type, $id)) {
                 if ($account->active) {
                     if ($data['points_amount'] <= 0) {
                         Log::info('Wrong loyalty points amount: ' . $data['points_amount']);

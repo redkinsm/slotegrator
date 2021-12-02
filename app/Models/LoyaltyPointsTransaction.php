@@ -48,4 +48,11 @@ class LoyaltyPointsTransaction extends Model
             'description' => $description,
         ]);
     }
+
+    public function cancel($reason)
+    {
+        $this->canceled = time();
+        $this->cancellation_reason = $reason;
+        $this->save();
+    }
 }

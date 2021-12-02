@@ -14,18 +14,12 @@ class AccountController extends Controller
 
     public function activate($type, $id)
     {
-        if (($type == 'phone' || $type == 'card' || $type == 'email') && $id != '') {
-            if ($account = LoyaltyAccount::where($type, '=', $id)->first()) {
-                if (!$account->active) {
-                    $account->active = true;
-                    $account->save();
-                    $account->notify('Account restored');
-                }
-            } else {
-                return response()->json(['message' => 'Account is not found'], 400);
-            }
+        $account = $this->findModel($type, $id);
+
+        if ($account instanceof LoyaltyAccount) {
+            $account->activate();
         } else {
-            throw new \InvalidArgumentException('Wrong parameters');
+            return $this->responseAccountNotFound();
         }
 
         return response()->json(['success' => true]);
@@ -33,18 +27,12 @@ class AccountController extends Controller
 
     public function deactivate($type, $id)
     {
-        if (($type == 'phone' || $type == 'card' || $type == 'email') && $id != '') {
-            if ($account = LoyaltyAccount::where($type, '=', $id)->first()) {
-                if ($account->active) {
-                    $account->active = false;
-                    $account->save();
-                    $account->notify('Account banned');
-                }
-            } else {
-                return response()->json(['message' => 'Account is not found'], 400);
-            }
+        $account = $this->findModel($type, $id);
+
+        if ($account) {
+            $account->deactivate();
         } else {
-            throw new \InvalidArgumentException('Wrong parameters');
+            return $this->responseAccountNotFound();
         }
 
         return response()->json(['success' => true]);
@@ -52,15 +40,29 @@ class AccountController extends Controller
 
     public function balance($type, $id)
     {
-        if (($type == 'phone' || $type == 'card' || $type == 'email') && $id != '') {
-            if ($account = LoyaltyAccount::where($type, '=', $id)->first()) {
-                return response()->json(['balance' => $account->getBalance()], 400);
-
-            } else {
-                return response()->json(['message' => 'Account is not found'], 400);
-            }
+        $account = $this->findModel($type, $id);
+        if ($account) {
+            return response()->json(['balance' => $account->getBalance()], 400);
         } else {
-            throw new \InvalidArgumentException('Wrong parameters');
+            return $this->responseAccountNotFound();
         }
+    }
+
+    protected function findModel($type, $id)
+    {
+        if (LoyaltyAccount::isValid($type, $id)) {
+            if ($account = LoyaltyAccount::getLoyaltyAccountByTypeAndId($type, $id)) {
+                return $account;
+            } else {
+                return null;
+            }
+        }
+
+        throw new \InvalidArgumentException('Wrong parameters');
+    }
+
+    protected function responseAccountNotFound()
+    {
+        return response()->json(['message' => 'Account is not found'], 400);
     }
 }
